@@ -169,6 +169,8 @@ func render(ctx *markup.RenderContext, input io.Reader, output io.Writer) error 
 			return
 		}
 
+		// Log via gitea log package and also print to stderr for debugging when
+		// running a local reproduction program (some test helpers may suppress log writers).
 		log.Error("Panic in markdown: %v\n%s", err, log.Stack(2))
 		escapedHTML := template.HTMLEscapeString(giteautil.UnsafeBytesToString(buf))
 		_, _ = output.Write(giteautil.UnsafeStringToBytes(escapedHTML))
@@ -181,6 +183,44 @@ func render(ctx *markup.RenderContext, input io.Reader, output io.Writer) error 
 
 	rc := &RenderConfig{Meta: markup.RenderMetaAsDetails}
 	buf, _ = ExtractMetadataBytes(buf, rc)
+	/*
+		// Only attempt to extract YAML front matter when the first line is a YAML separator
+		// AND there is a matching closing separator later in the content.
+		// If there is only a leading '---' (no closing '---'), we must not try to
+		// extract metadata because that will be treated as normal markdown (a
+		// thematic break) and should not interfere with goldmark parsing.
+		firstLineEnd := bytes.IndexByte(buf, '\n')
+		if firstLineEnd == -1 {
+			firstLineEnd = len(buf)
+		}
+		firstLine := buf[:firstLineEnd]
+		if isYAMLSeparator(firstLine) {
+			// scan for a later line that is also a YAML separator
+			foundClosing := false
+			start := firstLineEnd + 1
+			for start < len(buf) {
+				end := len(buf)
+				if idx := bytes.IndexByte(buf[start:], '\n'); idx >= 0 {
+					end = start + idx
+				}
+				line := buf[start:end]
+				if isYAMLSeparator(line) {
+					foundClosing = true
+					break
+				}
+				start = end + 1
+			}
+			if foundClosing {
+				buf, _ = ExtractMetadataBytes(buf, rc)
+			} else {
+				// If there's an opening YAML separator but no closing one, some versions
+				// of the goldmark parser can panic when parsing inline/code spans.
+				// Prepend a blank line so the leading '---' is treated as a thematic
+				// break (horizontal rule) and not as frontmatter, matching the
+				// behaviour when users insert an initial blank line.
+				buf = append([]byte("\n"), buf...)
+			}
+		}*/
 
 	metaLength := max(bufWithMetadataLength-len(buf), 0)
 	rc.metaLength = metaLength

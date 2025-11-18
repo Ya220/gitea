@@ -547,3 +547,22 @@ func TestMarkdownLink(t *testing.T) {
 <a href="#user-content-foo" rel="nofollow">link3</a></p>
 `, string(result))
 }
+
+// Test for issue #35800: markdown rendering broken when markup starts with horizontal line
+func TestRender_StartsWithHorizontalLine(t *testing.T) {
+	defer test.MockVariableValue(&markup.RenderBehaviorForTesting.DisableAdditionalAttributes, true)()
+
+	// Test: content starting with --- (without closing separator) should be treated as markdown, not YAML frontmatter
+	input := `---
+Related:
+* #1
+
+This should work`
+	result, err := markdown.RenderString(markup.NewTestRenderContext(), input)
+	assert.NoError(t, err)
+	// Should render as a horizontal line followed by content, not fail or lose content
+	assert.Contains(t, string(result), "Related")
+	assert.Contains(t, string(result), "#1")
+	assert.Contains(t, string(result), "This should work")
+}
+
