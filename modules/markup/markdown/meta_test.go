@@ -87,6 +87,16 @@ func TestExtractMetadataBytes(t *testing.T) {
 		assert.Equal(t, metaTest, meta)
 		assert.True(t, meta.Valid())
 	})
+
+	// Test case for issue #35800: content starting with --- but no closing separator
+	t.Run("StartsWithSeparatorButNoClosing", func(t *testing.T) {
+		var meta IssueTemplate
+		// This should return the original content as-is since no closing separator is found
+		content := "---\nRelated:\n* #1\n\nThis should work"
+		_, err := ExtractMetadataBytes([]byte(content), &meta)
+		// ExtractMetadataBytes should return an error when there's no closing separator
+		assert.Error(t, err)
+	})
 }
 
 var (
