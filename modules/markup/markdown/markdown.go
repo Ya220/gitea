@@ -183,7 +183,6 @@ func render(ctx *markup.RenderContext, input io.Reader, output io.Writer) error 
 	bufWithMetadataLength := len(buf)
 
 	rc := &RenderConfig{Meta: markup.RenderMetaAsDetails}
-	// Extract metadata if present. If not present, ExtractMetadataBytes returns original contents and an error.
 	buf, _ = ExtractMetadataBytes(buf, rc)
 
 	metaLength := max(bufWithMetadataLength-len(buf), 0)
