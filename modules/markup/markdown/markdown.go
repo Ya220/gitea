@@ -5,6 +5,7 @@
 package markdown
 
 import (
+	"bytes"
 	"errors"
 	"html/template"
 	"io"
@@ -182,6 +183,7 @@ func render(ctx *markup.RenderContext, input io.Reader, output io.Writer) error 
 	bufWithMetadataLength := len(buf)
 
 	rc := &RenderConfig{Meta: markup.RenderMetaAsDetails}
+	// Extract metadata if present. If not present, ExtractMetadataBytes returns original contents and an error.
 	buf, _ = ExtractMetadataBytes(buf, rc)
 	/*
 		// Only attempt to extract YAML front matter when the first line is a YAML separator
@@ -224,6 +226,42 @@ func render(ctx *markup.RenderContext, input io.Reader, output io.Writer) error 
 
 	metaLength := max(bufWithMetadataLength-len(buf), 0)
 	rc.metaLength = metaLength
+
+	// Workaround: goldmark may parse following lists as plain text if the original
+	// input started with a hyphen-only line (e.g. "-" or "-------") but there
+	// was no valid YAML front-matter. In that case, prefix the buffer with a
+	// zero-width space so the parser doesn't treat the hyphen line specially.
+	if rc.metaLength == 0 && len(buf) > 0 {
+		// inspect the first line of the ORIGINAL contents (we have buf already set to body
+		// so use the original length to find the original first line from input - but we no
+		// longer have the original bytes. Instead, re-check the beginning of the current
+		// buf: if it starts with a hyphen-only line, apply fix. This is safe because
+		// ExtractMetadataBytes returned original contents if there was no metadata.
+		idx := bytes.IndexByte(buf, '\n')
+		firstLine := buf
+		if idx >= 0 {
+			firstLine = buf[:idx]
+		}
+		// check if firstLine contains only spaces and hyphens
+		onlyHyphen := true
+		foundHyphen := false
+		for i := 0; i < len(firstLine); i++ {
+			b := firstLine[i]
+			if b == '-' {
+				foundHyphen = true
+				continue
+			}
+			if b == ' ' || b == '\t' || b == '\r' {
+				continue
+			}
+			onlyHyphen = false
+			break
+		}
+		if onlyHyphen && foundHyphen {
+			// prefix zero-width space
+			buf = append([]byte("\n"), buf...)
+		}
+	}
 
 	pc.Set(renderConfigKey, rc)
 
